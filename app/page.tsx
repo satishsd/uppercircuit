@@ -4,9 +4,36 @@ import { useState } from 'react'
 import StrategyInput from './components/StrategyInput'
 import BacktestResults from './components/BacktestResults'
 
+interface BacktestResults {
+  symbol: string
+  totalTrades: number
+  winRate: number
+  totalReturn: number
+  maxDrawdown: number
+  sharpeRatio: number
+  profitFactor: number
+  trades: Array<{
+    date: string
+    type: 'BUY' | 'SELL'
+    price: number
+    quantity: number
+    pnl?: number
+  }>
+  equityCurve: Array<{
+    date: string
+    equity: number
+  }>
+  fees: {
+    stt: number
+    sebiCharges: number
+    gst: number
+    total: number
+  }
+}
+
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
-  const [results, setResults] = useState<any>(null)
+  const [results, setResults] = useState<BacktestResults | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const handleBacktest = async (strategy: string, symbol: string, startDate: string, endDate: string) => {
@@ -24,7 +51,8 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        throw new Error('Backtest failed')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Backtest failed. Please check your inputs and try again.')
       }
 
       const data = await response.json()

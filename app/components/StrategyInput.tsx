@@ -10,11 +10,32 @@ interface StrategyInputProps {
 export default function StrategyInput({ onBacktest, isLoading }: StrategyInputProps) {
   const [strategy, setStrategy] = useState('')
   const [symbol, setSymbol] = useState('RELIANCE')
-  const [startDate, setStartDate] = useState('2023-01-01')
-  const [endDate, setEndDate] = useState('2023-12-31')
+  
+  // Set default dates dynamically - last year's data
+  const today = new Date()
+  const lastYear = new Date(today.getFullYear() - 1, 0, 1) // Jan 1 last year
+  const endOfLastYear = new Date(today.getFullYear() - 1, 11, 31) // Dec 31 last year
+  
+  const [startDate, setStartDate] = useState(lastYear.toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(endOfLastYear.toISOString().split('T')[0])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate date range
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    
+    if (start >= end) {
+      alert('Start date must be before end date')
+      return
+    }
+    
+    if (end > new Date()) {
+      alert('End date cannot be in the future')
+      return
+    }
+    
     if (strategy.trim() && symbol.trim()) {
       onBacktest(strategy, symbol, startDate, endDate)
     }
@@ -35,7 +56,8 @@ export default function StrategyInput({ onBacktest, isLoading }: StrategyInputPr
             id="strategy"
             value={strategy}
             onChange={(e) => setStrategy(e.target.value)}
-            className="input-field min-h-32 resize-y"
+            className="input-field resize-y"
+            style={{ minHeight: '8rem' }}
             placeholder="Example: Buy when RSI is below 30 and sell when profit reaches 5% or loss exceeds 2%"
             required
             disabled={isLoading}

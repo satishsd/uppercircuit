@@ -87,6 +87,15 @@ function runBacktest(symbol: string, startDate: string, endDate: string, strateg
   const end = new Date(endDate)
   const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
   
+  // Validate date range
+  if (days < 0 || days > 3650) { // Max 10 years
+    throw new Error('Invalid date range')
+  }
+  
+  // Constants
+  const STARTING_CAPITAL = 100000
+  const POSITION_SIZE = 0.9 // Use 90% of capital
+  
   // Mock initial price
   const basePrice = 2000 + Math.random() * 1000
   
@@ -94,12 +103,15 @@ function runBacktest(symbol: string, startDate: string, endDate: string, strateg
   const priceData: { date: string; price: number; rsi: number }[] = []
   let currentPrice = basePrice
   
+  // Note: This uses mock/random data for demonstration purposes
+  // In production, use actual historical market data from Angel One SmartAPI
   for (let i = 0; i <= days; i++) {
     const date = new Date(start.getTime() + i * 24 * 60 * 60 * 1000)
-    const dailyChange = (Math.random() - 0.48) * 0.03 // Slight upward bias
+    const dailyChange = (Math.random() - 0.5) * 0.03 // Unbiased random walk
     currentPrice = currentPrice * (1 + dailyChange)
     
-    // Mock RSI calculation (simplified)
+    // Mock RSI calculation (simplified random value for demo)
+    // In production, calculate actual RSI from price data
     const rsi = 30 + Math.random() * 40
     
     priceData.push({
@@ -112,7 +124,7 @@ function runBacktest(symbol: string, startDate: string, endDate: string, strateg
   // Run backtest logic
   const trades: Trade[] = []
   let position: { buyPrice: number; quantity: number; buyDate: string } | null = null
-  let capital = 100000 // Starting capital
+  let capital = STARTING_CAPITAL
   const equityCurve: { date: string; equity: number }[] = []
   
   let totalPnL = 0
@@ -123,7 +135,7 @@ function runBacktest(symbol: string, startDate: string, endDate: string, strateg
     if (!position) {
       // Look for entry signal (simplified: RSI < 35)
       if (day.rsi < 35 && capital > day.price) {
-        const quantity = Math.floor(capital * 0.9 / day.price) // Use 90% of capital
+        const quantity = Math.floor(capital * POSITION_SIZE / day.price)
         position = {
           buyPrice: day.price,
           quantity: quantity,
@@ -180,10 +192,10 @@ function runBacktest(symbol: string, startDate: string, endDate: string, strateg
   // Calculate metrics
   const totalTrades = wins + losses
   const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0
-  const totalReturn = ((equityCurve[equityCurve.length - 1].equity - 100000) / 100000) * 100
+  const totalReturn = ((equityCurve[equityCurve.length - 1].equity - STARTING_CAPITAL) / STARTING_CAPITAL) * 100
   
   // Calculate max drawdown
-  let maxEquity = 100000
+  let maxEquity = STARTING_CAPITAL
   let maxDrawdown = 0
   equityCurve.forEach(point => {
     if (point.equity > maxEquity) {
@@ -196,15 +208,19 @@ function runBacktest(symbol: string, startDate: string, endDate: string, strateg
   })
 
   // Calculate Indian market fees
+  const sellTurnover = trades.filter(t => t.type === 'SELL').reduce((sum, trade) => sum + (trade.price * trade.quantity), 0)
   const totalTurnover = trades.reduce((sum, trade) => sum + (trade.price * trade.quantity), 0)
-  const stt = totalTurnover * 0.00025 // 0.025% on sell side
+  const stt = sellTurnover * 0.00025 // 0.025% on sell side only
   const sebiCharges = totalTurnover * 0.0000005 // Negligible
   const transactionCharges = totalTurnover * 0.0003 // 0.03%
   const gst = (sebiCharges + transactionCharges) * 0.18 // 18% GST
-  const totalFees = stt + sebiCharges + gst
+  const totalFees = stt + sebiCharges + transactionCharges + gst
 
-  // Simplified Sharpe ratio and profit factor
-  const sharpeRatio = totalReturn > 0 ? (totalReturn / Math.max(maxDrawdown, 1)) : 0
+  // Calculate Sharpe ratio (simplified: return/risk ratio)
+  // Note: This is a simplified calculation. True Sharpe ratio requires:
+  // (mean return - risk-free rate) / standard deviation of returns
+  const sharpeRatio = maxDrawdown > 0 ? (totalReturn / maxDrawdown) : 0
+  
   const totalProfit = trades.filter(t => t.pnl && t.pnl > 0).reduce((sum, t) => sum + (t.pnl || 0), 0)
   const totalLoss = Math.abs(trades.filter(t => t.pnl && t.pnl < 0).reduce((sum, t) => sum + (t.pnl || 0), 0))
   const profitFactor = totalLoss > 0 ? totalProfit / totalLoss : totalProfit > 0 ? 10 : 0
